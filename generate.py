@@ -1,22 +1,21 @@
-.venv/
 from kokoro import KPipeline
 import soundfile as sf
 import numpy as np
 from pathlib import Path
 import sys
+import json
 
 from config import (
-    VOICE,
+    ACTIVE_PROFILE,
+    VOICE_PROFILES,
     LANGUAGE,
-    SPEED,
     SAMPLE_RATE,
     CHUNK_PAUSE,
     TARGET_PEAK
 )
 
-
 # ==========================================
-# ZURIYA VOICE ENGINE v1.5
+# ZURIYA VOICE ENGINE v1.7
 # ==========================================
 
 
@@ -27,10 +26,10 @@ from config import (
 BASE_DIR = Path(__file__).parent
 
 SCRIPT_DIR = BASE_DIR / "scripts"
+EPISODE_DIR = BASE_DIR / "episodes"
 OUTPUT_DIR = BASE_DIR / "output"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
-
 
 # ==========================================
 # TERMINAL HELPERS
@@ -84,7 +83,98 @@ if "/" in episode or "\\" in episode:
 if not episode:
 
     error("Episode name cannot be empty.")
+# ==========================================
+# EPISODE CONFIGURATION
+# ==========================================
 
+episode_config_file = (
+    EPISODE_DIR / f"{episode}.json"
+)
+
+if not episode_config_file.exists():
+
+    error(
+        f"Episode configuration not found.\n"
+        f"Expected:\n"
+        f"  {episode_config_file}"
+    )
+print("Loading episode configuration...")
+
+try:
+
+    episode_config = json.loads(
+        episode_config_file.read_text(
+            encoding="utf-8"
+        )
+    )
+
+except json.JSONDecodeError as e:
+
+    error(
+        f"Invalid episode configuration.\n"
+        f"{e}"
+    )
+
+except Exception as e:
+
+    error(
+        f"Could not read episode configuration.\n"
+        f"{e}"
+    )
+# ==========================================
+# EPISODE SETTINGS
+# ==========================================
+
+EPISODE_TITLE = episode_config.get(
+    "title",
+    episode
+)
+
+EPISODE_PROFILE = episode_config.get(
+    "voice_profile",
+    ACTIVE_PROFILE
+)
+
+EPISODE_CHUNK_PAUSE = episode_config.get(
+    "chunk_pause",
+    CHUNK_PAUSE
+)
+
+EPISODE_TARGET_PEAK = episode_config.get(
+    "target_peak",
+    TARGET_PEAK
+)
+# ==========================================
+# ACTIVE VOICE PROFILE
+# ==========================================
+
+if EPISODE_PROFILE not in VOICE_PROFILES:
+
+    print()
+    print(
+        f"ERROR: Voice profile "
+        f"'{EPISODE_PROFILE}' not found."
+    )
+    print()
+
+    print("Available profiles:")
+
+    for profile in VOICE_PROFILES:
+
+        print(f"  - {profile}")
+
+    print()
+
+    sys.exit(1)
+
+
+profile = VOICE_PROFILES[EPISODE_PROFILE]
+
+VOICE = profile["voice"]
+
+SPEED = profile["speed"]
+
+PROFILE_DESCRIPTION = profile["description"]
 
 # ==========================================
 # FILE PATHS
@@ -186,15 +276,18 @@ if output_file.exists():
 
 print()
 print("===================================")
-print("      ZURIYA VOICE ENGINE v1.5")
+print("      ZURIYA VOICE ENGINE v1.7")
 print("===================================")
 print()
 
 print(f"Episode:       {episode}")
+print(f"Title:         {EPISODE_TITLE}")
+print(f"Profile:       {EPISODE_PROFILE}")
 print(f"Voice:         {VOICE}")
 print(f"Speed:         {SPEED}")
 print(f"Sample Rate:   {SAMPLE_RATE}")
-print(f"Chunk Pause:   {CHUNK_PAUSE}s")
+print(f"Chunk Pause:   {EPISODE_CHUNK_PAUSE}s")
+print(f"Target Peak:   {EPISODE_TARGET_PEAK}")
 print()
 
 print(
@@ -283,7 +376,7 @@ print()
 print("Combining narration...")
 
 pause_samples = int(
-    CHUNK_PAUSE * SAMPLE_RATE
+    EPISODE_CHUNK_PAUSE * SAMPLE_RATE
 )
 
 silence = np.zeros(
@@ -327,7 +420,7 @@ if peak > 0:
 
     final_audio = (
         final_audio / peak
-    ) * TARGET_PEAK
+   ) * EPISODE_TARGET_PEAK
 
 
 # ==========================================

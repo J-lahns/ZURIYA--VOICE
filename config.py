@@ -3,25 +3,49 @@
 # Configuration
 # ==========================================
 
-# Kokoro voice
-VOICE = "am_michael"
 
-# Language
+# ==========================================
+# ACTIVE VOICE PROFILE
+# ==========================================
+
+ACTIVE_PROFILE = "keeper"
+
+
+# ==========================================
+# VOICE PROFILES
+# ==========================================
+
+VOICE_PROFILES = {
+
+    "keeper": {
+        "voice": "am_michael",
+        "speed": 1.0,
+        "description": "THE KEEPER - primary ZURIYA narrator"
+    },
+
+    "keeper_slow": {
+        "voice": "am_michael",
+        "speed": 0.92,
+        "description": "THE KEEPER - slower cinematic delivery"
+    },
+
+    "keeper_fast": {
+        "voice": "am_michael",
+        "speed": 1.08,
+        "description": "THE KEEPER - faster energetic delivery"
+    }
+
+}
+
+
+# ==========================================
+# AUDIO SETTINGS
+# ==========================================
+
 LANGUAGE = "a"
 
-# Narration speed
-SPEED = 1.0
-
-# Audio sample rate
 SAMPLE_RATE = 24000
 
-
-# ==========================================
-# AUDIO PROCESSING
-# ==========================================
-
-# Silence added between generated chunks
 CHUNK_PAUSE = 0.15
 
-# Target peak volume
 TARGET_PEAK = 0.95
