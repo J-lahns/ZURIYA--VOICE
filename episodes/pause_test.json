@@ -1,0 +1,7 @@
+
+{
+    "title": "Cinematic Pause Test",
+    "voice_profile": "keeper",
+    "chunk_pause": 0.15,
+    "target_peak": 0.95
+}
