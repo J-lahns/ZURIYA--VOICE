@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import json
 
+from processing.script_processor import process_script
+
 from config import (
     ACTIVE_PROFILE,
     VOICE_PROFILES,
@@ -15,7 +17,7 @@ from config import (
 )
 
 # ==========================================
-# ZURIYA VOICE ENGINE v1.7
+# ZURIYA VOICE ENGINE v1.8
 # ==========================================
 
 
@@ -224,7 +226,6 @@ if not script_file.exists():
 # ==========================================
 # READ SCRIPT
 # ==========================================
-
 text = script_file.read_text(
     encoding="utf-8"
 ).strip()
@@ -238,6 +239,46 @@ if not text:
     )
 
 
+# ==========================================
+# SCRIPT PROCESSING
+# ==========================================
+
+print("Processing script...")
+
+try:
+
+    segments = process_script(
+        text
+    )
+
+except Exception as e:
+
+    error(
+        f"Script processing failed.\n"
+        f"{e}"
+    )
+
+
+text_segments = sum(
+    1
+    for segment in segments
+    if segment["type"] == "text"
+)
+
+pause_segments = sum(
+    1
+    for segment in segments
+    if segment["type"] == "pause"
+)
+
+
+print(
+    f"Text segments:  {text_segments}"
+)
+
+print(
+    f"Pause segments: {pause_segments}"
+)
 # ==========================================
 # OUTPUT PROTECTION
 # ==========================================
@@ -276,7 +317,7 @@ if output_file.exists():
 
 print()
 print("===================================")
-print("      ZURIYA VOICE ENGINE v1.7")
+print("      ZURIYA VOICE ENGINE v1.8")
 print("===================================")
 print()
 
@@ -322,40 +363,109 @@ except Exception as e:
 
 
 # ==========================================
-# GENERATE AUDIO
+# GENERATE NARRATION
 # ==========================================
 
-print()
 print("Generating narration...")
-print()
 
 audio_parts = []
 
-try:
+part_counter = 0
 
-    generator = pipeline(
-        text,
-        voice=VOICE,
-        speed=SPEED
-    )
 
-    for i, (_, _, audio) in enumerate(
-        generator
-    ):
+for segment in segments:
 
-        audio_parts.append(audio)
+    # ======================================
+    # TEXT SEGMENT
+    # ======================================
 
-        print(
-            f"Generated part {i:02d}"
+    if segment["type"] == "text":
+
+        segment_text = segment["content"]
+
+        print()
+        print("Generating text segment...")
+        print(f"  {segment_text}")
+
+        generator = pipeline(
+            segment_text,
+            voice=VOICE,
+            speed=SPEED
         )
 
-except Exception as e:
+        segment_audio_parts = []
 
-    error(
-        f"Narration generation failed.\n"
-        f"{e}"
-    )
 
+        for _, _, audio in generator:
+
+            print(
+                f"Generated part "
+                f"{part_counter:02d}"
+            )
+
+            segment_audio_parts.append(
+                audio
+            )
+
+            part_counter += 1
+
+
+        
+
+        # ----------------------------------
+        # Combine Kokoro chunks
+        # ----------------------------------
+
+        if segment_audio_parts:
+
+            for i, audio in enumerate(
+                segment_audio_parts
+            ):
+
+                audio_parts.append(audio)
+
+                if i < len(segment_audio_parts) - 1:
+
+                    pause_samples = int(
+                        EPISODE_CHUNK_PAUSE * SAMPLE_RATE
+                    )
+
+                    chunk_silence = np.zeros(
+                        pause_samples,
+                        dtype=np.float32
+                    )
+
+                    audio_parts.append(
+                        chunk_silence
+                    )
+
+
+    # ======================================
+    # PAUSE SEGMENT
+    # ======================================
+
+    elif segment["type"] == "pause":
+
+        duration = segment["duration"]
+
+        print()
+        print(
+            f"Adding pause: "
+            f"{duration:.2f} seconds"
+        )
+
+        pause_samples = int(
+            duration * SAMPLE_RATE
+        )
+
+        silence = np.zeros(
+            pause_samples,
+            dtype=np.float32
+        )
+
+        audio_parts.append(
+            silence
+        )
 
 # ==========================================
 # CHECK GENERATED AUDIO
@@ -368,6 +478,8 @@ if not audio_parts:
     )
 
 
+
+
 # ==========================================
 # MERGE AUDIO
 # ==========================================
@@ -375,33 +487,15 @@ if not audio_parts:
 print()
 print("Combining narration...")
 
-pause_samples = int(
-    EPISODE_CHUNK_PAUSE * SAMPLE_RATE
-)
+if not audio_parts:
 
-silence = np.zeros(
-    pause_samples,
-    dtype=np.float32
-)
-
-merged_audio = []
-
-
-for i, audio in enumerate(
-    audio_parts
-):
-
-    merged_audio.append(audio)
-
-    if i < len(audio_parts) - 1:
-
-        merged_audio.append(
-            silence
-        )
-
+    error(
+        "No audio was generated. "
+        "Please check the episode script."
+    )
 
 final_audio = np.concatenate(
-    merged_audio
+    audio_parts
 )
 
 
@@ -415,14 +509,11 @@ peak = np.max(
     np.abs(final_audio)
 )
 
-
 if peak > 0:
 
     final_audio = (
         final_audio / peak
-   ) * EPISODE_TARGET_PEAK
-
-
+    ) * EPISODE_TARGET_PEAK
 # ==========================================
 # SAVE AUDIO
 # ==========================================
